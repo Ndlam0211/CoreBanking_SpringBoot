@@ -10,3 +10,18 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MariaDBDialect
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: nguyendinhlam0211@gmail.com
+    password: zubpifjsverjajhy
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 3000
+          writetimeout: 5000
