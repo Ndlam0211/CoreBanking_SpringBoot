@@ -3,13 +3,16 @@ package com.lamnd.corebanking.service.impl;
 import com.lamnd.corebanking.config.AppConstant;
 import com.lamnd.corebanking.dto.AccountInfo;
 import com.lamnd.corebanking.dto.EmailDetails;
+import com.lamnd.corebanking.dto.TransactionDTO;
 import com.lamnd.corebanking.dto.request.CreditDebitRequest;
 import com.lamnd.corebanking.dto.request.EnquiryRequest;
+import com.lamnd.corebanking.dto.request.TransferRequest;
 import com.lamnd.corebanking.dto.request.UserRequest;
 import com.lamnd.corebanking.dto.response.BankResponse;
 import com.lamnd.corebanking.entity.User;
 import com.lamnd.corebanking.repository.UserRepo;
 import com.lamnd.corebanking.service.EmailService;
+import com.lamnd.corebanking.service.TransactionService;
 import com.lamnd.corebanking.service.UserService;
 import com.lamnd.corebanking.utils.AccountUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +27,9 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private EmailService emailSevice;
+
+    @Autowired
+    private TransactionService transactionService;
 
     @Override
     public BankResponse createAccount(UserRequest userRequest) {
@@ -130,6 +136,14 @@ public class UserServiceImpl implements UserService {
         userToCredit.setAccountBalance(userToCredit.getAccountBalance().add(request.getAmount()));
         userRepo.save(userToCredit);
 
+        // save transaction
+        TransactionDTO transactionDTO = TransactionDTO.builder()
+                .accountNumber(userToCredit.getAccountNumber())
+                .transactionType("CREDIT")
+                .amount(request.getAmount())
+                .build();
+        transactionService.saveTransaction(transactionDTO);
+
         // return success response with updated account details
         return BankResponse.builder()
                 .responseCode(AppConstant.ACCOUNT_CREDITED_SUCCESS_CODE)
@@ -168,6 +182,14 @@ public class UserServiceImpl implements UserService {
         userToDebit.setAccountBalance(userToDebit.getAccountBalance().subtract(request.getAmount()));
         userRepo.save(userToDebit);
 
+        // save transaction
+        TransactionDTO transactionDTO = TransactionDTO.builder()
+                .accountNumber(userToDebit.getAccountNumber())
+                .transactionType("DEBIT")
+                .amount(request.getAmount())
+                .build();
+        transactionService.saveTransaction(transactionDTO);
+
         // return success response with updated account details
         return BankResponse.builder()
                 .responseCode(AppConstant.ACCOUNT_DEBITED_SUCCESS_CODE)
@@ -177,6 +199,58 @@ public class UserServiceImpl implements UserService {
                         .accountNumber(userToDebit.getAccountNumber())
                         .accountBalance(userToDebit.getAccountBalance())
                         .build())
+                .build();
+    }
+
+    @Override
+    public BankResponse transfer(TransferRequest request) {
+        // check if destination account exists
+        boolean isDestAccountExist = userRepo.existsByAccountNumber(request.getDestinationAccountNumber());
+        if (!isDestAccountExist) {
+            return BankResponse.builder()
+                    .responseCode(AppConstant.ACCOUNT_NOT_FOUND_CODE)
+                    .responseMessage(AppConstant.ACCOUNT_NOT_FOUND_MESSAGE)
+                    .build();
+        }
+
+        // get source account details
+        User sourceUser = userRepo.findByAccountNumber(request.getSourceAccountNumber());
+        // check if user has sufficient balance
+        if (sourceUser.getAccountBalance().compareTo(request.getAmount()) < 0) {
+            return BankResponse.builder()
+                    .responseCode(AppConstant.INSUFFICIENT_BALANCE_CODE)
+                    .responseMessage(AppConstant.INSUFFICIENT_BALANCE_MESSAGE)
+                    .build();
+        }
+
+        // update account balance if not insufficient balance
+        sourceUser.setAccountBalance(sourceUser.getAccountBalance().subtract(request.getAmount()));
+        userRepo.save(sourceUser);
+
+        // save transaction for debit
+        TransactionDTO debitTransaction = TransactionDTO.builder()
+                .accountNumber(sourceUser.getAccountNumber())
+                .transactionType("DEBIT")
+                .amount(request.getAmount())
+                .build();
+        transactionService.saveTransaction(debitTransaction);
+
+        // get destination account details and update balance
+        User destUser = userRepo.findByAccountNumber(request.getDestinationAccountNumber());
+        destUser.setAccountBalance(destUser.getAccountBalance().add(request.getAmount()));
+        userRepo.save(destUser);
+
+        // save transaction for credit
+        TransactionDTO creditTransaction = TransactionDTO.builder()
+                .accountNumber(destUser.getAccountNumber())
+                .transactionType("CREDIT")
+                .amount(request.getAmount())
+                .build();
+        transactionService.saveTransaction(creditTransaction);
+
+        return BankResponse.builder()
+                .responseCode(AppConstant.TRANSFER_SUCCESS_CODE)
+                .responseMessage(AppConstant.TRANSFER_SUCCESS_MESSAGE)
                 .build();
     }
 }

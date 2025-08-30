@@ -15,4 +15,6 @@ public class AppConstant {
     public static final String ACCOUNT_DEBITED_SUCCESS_MESSAGE = "Account debited successfully!";
     public static final String INSUFFICIENT_BALANCE_CODE = "006";
     public static final String INSUFFICIENT_BALANCE_MESSAGE = "Insufficient balance!";
+    public static final String TRANSFER_SUCCESS_CODE = "007";
+    public static final String TRANSFER_SUCCESS_MESSAGE = "Transfer completed successfully!";
 }
